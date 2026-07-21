@@ -34,7 +34,7 @@ jobs:
 
       - name: Create release
         id: release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: "NovaDB v${{ steps.tag.outputs.version }}"
           body_path: /tmp/changelog.md
@@ -77,7 +77,7 @@ jobs:
           sha256sum novadb-cli-${{ matrix.target }}    > novadb-cli-${{ matrix.target }}.sha256
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           files: |
@@ -101,7 +101,7 @@ jobs:
           sha256sum /tmp/novadb-${VERSION}.tar.gz > /tmp/novadb-${VERSION}.tar.gz.sha256
 
       - name: Upload source
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           files: |

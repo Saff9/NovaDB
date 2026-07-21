@@ -15,7 +15,7 @@ jobs:
     outputs:
       upload_url: ${{ steps.release.outputs.upload_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Parse version tag
         id: tag
@@ -62,7 +62,7 @@ jobs:
             runner: macos-15
             cc: clang
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build
         run: |
@@ -91,7 +91,7 @@ jobs:
     needs: create-release
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Create archive
         run: |

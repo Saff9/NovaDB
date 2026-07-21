@@ -43,10 +43,8 @@ check_function_exists("fallocate"   HAVE_FALLOCATE)
 check_function_exists("posix_fadvise" HAVE_FADVISE)
 
 # ── Configuration header ───────────────────────────────────────
-configure_file(
-    include/novadb/config.h.in
-    ${CMAKE_BINARY_DIR}/generated/config.h
-)
+# The project ships a static platform-adaptive header (nvdb_config.h)
+# rather than a CMake-generated one, so no configure_file() is needed.
 
 # ── Library: libnovadb ─────────────────────────────────────────
 set(NVDB_SOURCES
@@ -59,6 +57,9 @@ set(NVDB_SOURCES
     src/storage/btree.c
     src/storage/wal.c
     src/storage/buffer.c
+
+    # Engine
+    src/engine.c
 
     # Transactions
     src/txn/transaction.c
@@ -79,14 +80,13 @@ set(NVDB_HEADERS
     include/novadb/nvdb.h
     include/novadb/types.h
     include/novadb/error.h
-    ${CMAKE_BINARY_DIR}/generated/config.h
+    include/novadb/nvdb_config.h
 )
 
 add_library(novadb STATIC ${NVDB_SOURCES})
 target_include_directories(novadb
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/generated>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )

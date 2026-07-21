@@ -30,9 +30,11 @@ ENGINE_SRCS = \
     $(SRCDIR)/storage/btree.c \
     $(SRCDIR)/storage/wal.c \
     $(SRCDIR)/txn/transaction.c \
+    $(SRCDIR)/txn/mvcc.c \
     $(SRCDIR)/sql/lexer.c \
     $(SRCDIR)/sql/parser.c \
     $(SRCDIR)/sql/executor.c \
+    $(SRCDIR)/sql/planner.c \
     $(SRCDIR)/network/protocol.c \
     $(SRCDIR)/network/server.c \
     $(SRCDIR)/engine.c

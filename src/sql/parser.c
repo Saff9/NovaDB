@@ -69,6 +69,38 @@ static bool p_expect(Parser *p, SQLTokenKind k) {
     return false;
 }
 
+/*
+ * p_expect_id() — expect an IDENTIFIER, advance, and return its text
+ * via *out. Returns false and sets an error on mismatch.
+ * This avoids the read-after-advance pitfall.
+ */
+static bool p_expect_id(Parser *p, const char **out) {
+    if (p->tok->kind == TOK_IDENTIFIER) {
+        *out = p->tok->text;
+        p_advance(p);
+        return true;
+    }
+    nvdb_set_error(NVDB_ERR_PARSE,
+                   "expected identifier, got '%s' at pos %d",
+                   p->tok->text, p->tok->start);
+    return false;
+}
+
+/*
+ * p_expect_int() — expect a TOK_INTEGER_LIT, capture its text, and advance.
+ */
+static bool p_expect_int(Parser *p, const char **out) {
+    if (p->tok->kind == TOK_INTEGER_LIT) {
+        *out = p->tok->text;
+        p_advance(p);
+        return true;
+    }
+    nvdb_set_error(NVDB_ERR_PARSE,
+                   "expected integer literal, got '%s' at pos %d",
+                   p->tok->text, p->tok->start);
+    return false;
+}
+
 /* ── Expression parsing (Pratt) ───────────────────────────────── */
 
 static ASTExpr *p_expr(Parser *p, int min_prec);
@@ -316,9 +348,9 @@ ASTStmt *parser_parse_select(Parser *p) {
 
     /* FROM */
     if (p_eat(p, TOK_FROM)) {
-        if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-        s->sel.table = nvdb_arena_strdup(g_arena, p->tok->text);
-        p_advance(p);
+        const char *tname;
+        if (!p_expect_id(p, &tname)) return NULL;
+        s->sel.table = nvdb_arena_strdup(g_arena, tname);
     }
 
     /* WHERE */
@@ -333,10 +365,10 @@ ASTStmt *parser_parse_select(Parser *p) {
         ASTOrderClause orders[16];
         int norders = 0;
         do {
-            if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-            orders[norders].column = nvdb_arena_strdup(g_arena, p->tok->text);
+            const char *cname;
+            if (!p_expect_id(p, &cname)) return NULL;
+            orders[norders].column = nvdb_arena_strdup(g_arena, cname);
             orders[norders].desc = false;
-            p_advance(p);
 
             if (p_match(p, TOK_ASC))  p_advance(p);
             else if (p_match(p, TOK_DESC)) {
@@ -353,16 +385,16 @@ ASTStmt *parser_parse_select(Parser *p) {
 
     /* LIMIT */
     if (p_eat(p, TOK_LIMIT)) {
-        if (!p_expect(p, TOK_INTEGER_LIT)) return NULL;
-        s->sel.limit = (int)strtol(p->tok->text, NULL, 10);
-        p_advance(p);
+        const char *limtext;
+        if (!p_expect_int(p, &limtext)) return NULL;
+        s->sel.limit = (int)strtol(limtext, NULL, 10);
     }
 
     /* OFFSET */
     if (p_eat(p, TOK_OFFSET)) {
-        if (!p_expect(p, TOK_INTEGER_LIT)) return NULL;
-        s->sel.offset = (int)strtol(p->tok->text, NULL, 10);
-        p_advance(p);
+        const char *offtext;
+        if (!p_expect_int(p, &offtext)) return NULL;
+        s->sel.offset = (int)strtol(offtext, NULL, 10);
     }
 
     return s;
@@ -376,9 +408,9 @@ ASTStmt *parser_parse_insert(Parser *p) {
 
     ASTStmt *s = parser_make_stmt(AST_STMT_INSERT);
 
-    if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-    s->ins.table = nvdb_arena_strdup(g_arena, p->tok->text);
-    p_advance(p);
+    const char *tname;
+    if (!p_expect_id(p, &tname)) return NULL;
+    s->ins.table = nvdb_arena_strdup(g_arena, tname);
 
     /* Optional column list */
     if (p_match(p, TOK_LPAREN)) {
@@ -386,9 +418,9 @@ ASTStmt *parser_parse_insert(Parser *p) {
         char *cols[64];
         int  n = 0;
         do {
-            if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-            cols[n++] = nvdb_arena_strdup(g_arena, p->tok->text);
-            p_advance(p);
+            const char *cname;
+            if (!p_expect_id(p, &cname)) return NULL;
+            cols[n++] = nvdb_arena_strdup(g_arena, cname);
         } while (p_eat(p, TOK_COMMA));
         p_expect(p, TOK_RPAREN);
         s->ins.col_names  = ast_alloc(sizeof(char *) * (size_t)n);
@@ -437,18 +469,18 @@ ASTStmt *parser_parse_update(Parser *p) {
 
     ASTStmt *s = parser_make_stmt(AST_STMT_UPDATE);
 
-    if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-    s->upd.table = nvdb_arena_strdup(g_arena, p->tok->text);
-    p_advance(p);
+    const char *tname;
+    if (!p_expect_id(p, &tname)) return NULL;
+    s->upd.table = nvdb_arena_strdup(g_arena, tname);
 
     if (!p_expect(p, TOK_SET)) return NULL;
 
     ASTSetClause sets[64];
     int nsets = 0;
     do {
-        if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-        sets[nsets].column = nvdb_arena_strdup(g_arena, p->tok->text);
-        p_advance(p);
+        const char *cname;
+        if (!p_expect_id(p, &cname)) return NULL;
+        sets[nsets].column = nvdb_arena_strdup(g_arena, cname);
 
         if (!p_expect(p, TOK_EQ)) return NULL;
         sets[nsets].value = p_expr(p, 0);
@@ -474,9 +506,9 @@ ASTStmt *parser_parse_delete(Parser *p) {
 
     ASTStmt *s = parser_make_stmt(AST_STMT_DELETE);
 
-    if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-    s->del.table = nvdb_arena_strdup(g_arena, p->tok->text);
-    p_advance(p);
+    const char *tname;
+    if (!p_expect_id(p, &tname)) return NULL;
+    s->del.table = nvdb_arena_strdup(g_arena, tname);
 
     if (p_eat(p, TOK_WHERE)) {
         s->del.where = p_expr(p, 0);
@@ -501,18 +533,18 @@ ASTStmt *parser_parse_create(Parser *p) {
         s->ct.if_not_exists = true;
     }
 
-    if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-    s->ct.table = nvdb_arena_strdup(g_arena, p->tok->text);
-    p_advance(p);
+    const char *ctname;
+    if (!p_expect_id(p, &ctname)) return NULL;
+    s->ct.table = nvdb_arena_strdup(g_arena, ctname);
 
     if (!p_expect(p, TOK_LPAREN)) return NULL;
 
     ASTColumnDef cols[64];
     int ncols = 0;
     do {
-        if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-        cols[ncols].name = nvdb_arena_strdup(g_arena, p->tok->text);
-        p_advance(p);
+        const char *colname;
+        if (!p_expect_id(p, &colname)) return NULL;
+        cols[ncols].name = nvdb_arena_strdup(g_arena, colname);
 
         /* Type */
         cols[ncols].type = nvdb_arena_strdup(g_arena, p->tok->text);
@@ -576,9 +608,9 @@ ASTStmt *parser_parse_drop(Parser *p) {
         s->dt.if_exists = true;
     }
 
-    if (!p_expect(p, TOK_IDENTIFIER)) return NULL;
-    s->dt.table = nvdb_arena_strdup(g_arena, p->tok->text);
-    p_advance(p);
+    const char *dtname;
+    if (!p_expect_id(p, &dtname)) return NULL;
+    s->dt.table = nvdb_arena_strdup(g_arena, dtname);
 
     return s;
 }

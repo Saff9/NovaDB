@@ -14,14 +14,30 @@
 #define NVDB_MAX_CONNECTIONS     1024
 #define NVDB_WAL_SEGMENT_SIZE    16777216
 
+#if defined(__linux__)
 #define HAVE_EPOLL    1
+#else
+#define HAVE_EPOLL    0
+#endif
+
 #define HAVE_PREAD    1
 #define HAVE_PWRITE   1
 #define HAVE_MMAP     1
 #define HAVE_FCNTL    1
+
+#if defined(__linux__)
 #define HAVE_FALLOCATE 1
+#else
+#define HAVE_FALLOCATE 0
+#endif
+
 #define HAVE_FADVISE  0
+
+#if defined(__linux__)
+#define HAVE_BYTESWAP_H 1
+#else
 #define HAVE_BYTESWAP_H 0
+#endif
 
 #if defined(__linux__)
 #  define NVDB_PLATFORM_LINUX 1

@@ -28,7 +28,6 @@ typedef struct {
 
 /* ── Thread-local last error ─────────────────────────────────── */
 #if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#  include <threads.h>
 #  define NVDB_THREAD_LOCAL _Thread_local
 #elif defined(__GNUC__) || defined(__clang__)
 #  define NVDB_THREAD_LOCAL __thread

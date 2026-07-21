@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NovaDB — The Open-Source SQL Database Engine</title>
+<meta name="description" content="NovaDB is a production-grade SQL database built from scratch in C. B+Tree, WAL, MVCC, TCP wire protocol — all in under 7,000 lines of portable C11.">
+<style>
+  /* ── Reset & Base ──────────────────────────────────── */
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  @font-face{font-family:'Inter';font-style:normal;font-weight:300 900;font-display:swap;src:url(https://fonts.gstatic.com/s/inter/v18/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2) format('woff2')}
+  html{scroll-behavior:smooth;scroll-padding-top:80px}
+  body{
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:#09090b;color:#fafafa;line-height:1.68;
+    -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+    overflow-x:hidden;
+  }
+  a{color:inherit;text-decoration:none}
+  img,svg{display:block;max-width:100%}
+
+  /* ── Utilities ─────────────────────────────────────── */
+  .container{max-width:1160px;margin:0 auto;padding:0 2rem}
+  .section-pad{padding:7rem 2rem}
+  .section-tag{text-transform:uppercase;letter-spacing:0.18em;font-size:0.72rem;font-weight:700;color:#a78bfa;margin-bottom:1rem}
+  .section-head{font-size:clamp(2rem,4.5vw,3rem);font-weight:800;letter-spacing:-0.04em;line-height:1.1;margin-bottom:1rem}
+  .section-sub{color:#71717a;font-size:1.1rem;max-width:560px;line-height:1.7}
+  .gradient-text{background:linear-gradient(135deg,#c084fc 0%,#a78bfa 40%,#818cf8 70%,#38bdf8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+
+  /* ── Nav ───────────────────────────────────────────── */
+  .nav{
+    position:fixed;top:0;left:0;right:0;z-index:1000;
+    background:rgba(9,9,11,0.82);backdrop-filter:blur(20px) saturate(180%);
+    -webkit-backdrop-filter:blur(20px) saturate(180%);
+    border-bottom:1px solid rgba(255,255,255,0.06);
+    transition:all 0.3s;
+  }
+  .nav .container{display:flex;align-items:center;justify-content:space-between;height:68px}
+  .nav-brand{display:flex;align-items:center;gap:0.65rem}
+  .nav-brand svg{width:34px;height:34px;filter:drop-shadow(0 0 18px rgba(124,58,237,0.45))}
+  .nav-brand span{font-size:1.15rem;font-weight:750;letter-spacing:-0.02em}
+  .nav-links{display:flex;gap:2.2rem;align-items:center;list-style:none}
+  .nav-links a{font-size:0.875rem;font-weight:500;color:#a1a1aa;transition:color 0.2s;position:relative}
+  .nav-links a:hover,.nav-links a.active{color:#fafafa}
+  .nav-links a::after{
+    content:'';position:absolute;bottom:-6px;left:0;width:0;height:2px;
+    background:linear-gradient(90deg,#c084fc,#818cf8);border-radius:1px;transition:width 0.25s
+  }
+  .nav-links a:hover::after{width:100%}
+  .nav-cta{background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff!important;padding:0.5rem 1.2rem;border-radius:8px;font-weight:600!important;transition:all 0.25s}
+  .nav-cta:hover{transform:translateY(-1px);box-shadow:0 8px 25px rgba(124,58,237,0.35)}
+  .nav-cta::after{display:none!important}
+
+  /* ── Buttons ───────────────────────────────────────── */
+  .btn{display:inline-flex;align-items:center;gap:0.5rem;padding:0.75rem 1.6rem;border-radius:10px;font-weight:650;font-size:0.92rem;transition:all 0.25s;cursor:pointer;border:none;white-space:nowrap}
+  .btn-primary{background:linear-gradient(135deg,#7c3aed,#6d28d9);color:#fff;box-shadow:0 4px 20px rgba(124,58,237,0.3)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(124,58,237,0.45)}
+  .btn-secondary{background:rgba(255,255,255,0.06);color:#e4e4e7;border:1px solid rgba(255,255,255,0.1)}
+  .btn-secondary:hover{background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.18);transform:translateY(-1px)}
+  .btn-lg{padding:0.9rem 2.2rem;font-size:1rem;border-radius:12px}
+
+  /* ── Hero ──────────────────────────────────────────── */
+  .hero{position:relative;padding:10rem 2rem 7rem;text-align:center;overflow:hidden}
+  .hero::before{
+    content:'';position:absolute;top:-50%;left:50%;transform:translateX(-50%);
+    width:900px;height:900px;background:radial-gradient(circle,rgba(124,58,237,0.15) 0%,transparent 65%);
+    pointer-events:none;
+  }
+  .hero-badge{display:inline-flex;align-items:center;gap:0.5rem;padding:0.35rem 0.9rem;border-radius:100px;background:rgba(124,58,237,0.1);border:1px solid rgba(124,58,237,0.25);font-size:0.82rem;font-weight:550;color:#c084fc;margin-bottom:2rem}
+  .hero-badge .dot{width:7px;height:7px;border-radius:50%;background:#22c55e;animation:pulse-dot 2s infinite}
+  @keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:0.35}}
+  .hero-logo{margin:0 auto 2.5rem;position:relative}
+  .hero-logo svg{width:130px;height:130px;margin:0 auto;filter:drop-shadow(0 0 60px rgba(124,58,237,0.5))}
+  .hero-logo::after{
+    content:'';position:absolute;inset:-20px;border-radius:50%;
+    background:radial-gradient(circle,rgba(124,58,237,0.2),transparent 70%);
+    animation:logo-glow 3s ease-in-out infinite;
+  }
+  @keyframes logo-glow{0%,100%{opacity:0.5;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+  .hero h1{font-size:clamp(2.8rem,8vw,4.5rem);font-weight:900;letter-spacing:-0.045em;line-height:1.05;margin-bottom:1.2rem}
+  .hero h1 span{display:block}
+  .hero .byline{font-size:1.15rem;color:#71717a;max-width:620px;margin:0 auto 2.5rem;line-height:1.7}
+  .hero .byline strong{color:#a78bfa;font-weight:650}
+  .hero-actions{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-bottom:3rem}
+  .hero-stats{display:flex;gap:2.5rem;justify-content:center;flex-wrap:wrap;padding-top:2rem;border-top:1px solid rgba(255,255,255,0.06)}
+  .hero-stat{text-align:center}
+  .hero-stat .num{font-size:1.6rem;font-weight:800;letter-spacing:-0.03em;background:linear-gradient(135deg,#c084fc,#818cf8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .hero-stat .lbl{font-size:0.78rem;color:#52525b;text-transform:uppercase;letter-spacing:0.1em;margin-top:0.15rem}
+
+  /* ── Sections ──────────────────────────────────────── */
+  .section-dark{background:#0c0c10}
+  .grid{display:grid;gap:1.5rem}
+  .grid-2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .grid-3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .grid-4{grid-template-columns:repeat(auto-fit,minmax(250px,1fr))}
+
+  .card{
+    background:rgba(255,255,255,0.025);border:1px solid rgba(255,255,255,0.06);
+    border-radius:14px;padding:1.8rem;transition:all 0.3s;position:relative;overflow:hidden;
+  }
+  .card::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(167,139,250,0.25),transparent);
+    opacity:0;transition:opacity 0.3s;
+  }
+  .card:hover{border-color:rgba(167,139,250,0.25);transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,0,0,0.4)}
+  .card:hover::before{opacity:1}
+  .card-icon{width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;margin-bottom:1rem;background:rgba(124,58,237,0.12);border:1px solid rgba(124,58,237,0.18)}
+  .card h3{font-size:1.05rem;font-weight:700;margin-bottom:0.5rem;letter-spacing:-0.01em}
+  .card p{color:#71717a;font-size:0.9rem;line-height:1.65}
+  .card code{background:rgba(167,139,250,0.08);padding:0.15em 0.4em;border-radius:4px;font-size:0.85em;color:#c084fc}
+
+  /* ── Code blocks ───────────────────────────────────── */
+  .code-window{
+    background:#0f0f13;border:1px solid rgba(255,255,255,0.08);border-radius:12px;
+    overflow:hidden;margin:1.5rem 0;box-shadow:0 20px 50px rgba(0,0,0,0.5);
+  }
+  .code-window .topbar{
+    display:flex;align-items:center;gap:0.5rem;padding:0.75rem 1rem;
+    background:rgba(255,255,255,0.025);border-bottom:1px solid rgba(255,255,255,0.06);
+  }
+  .code-window .topbar .dot{width:10px;height:10px;border-radius:50%}
+  .code-window .topbar .dot.red{background:#ef4444}
+  .code-window .topbar .dot.yellow{background:#f59e0b}
+  .code-window .topbar .dot.green{background:#22c55e}
+  .code-window .topbar .title{font-size:0.75rem;color:#52525b;margin-left:0.5rem}
+  .code-window pre{padding:1.5rem;margin:0;overflow-x:auto;font-family:'JetBrains Mono','Fira Code','SF Mono',monospace;font-size:0.82rem;line-height:1.75;color:#e4e4e7}
+  .kw{color:#f472b6}.str{color:#4ade80}.cmt{color:#52525b;font-style:italic}.fn{color:#a78bfa}.num{color:#fb923c}.ty{color:#38bdf8}
+
+  /* ── Architecture Diagram ──────────────────────────── */
+  .arch{background:#0f0f13;border:1px solid rgba(255,255,255,0.06);border-radius:14px;padding:2.5rem 2rem;overflow-x:auto}
+  .arch pre{font-family:'JetBrains Mono','Fira Code',monospace;font-size:0.78rem;line-height:2;color:#e4e4e7;white-space:pre}
+  .arch .box{display:inline-block;padding:0.25em 0.6em;border-radius:5px;margin:0.08em 0}
+  .arch .b-client{background:rgba(56,189,248,0.1);border:1px solid rgba(56,189,248,0.2);color:#38bdf8}
+  .arch .b-srv{background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);color:#a78bfa}
+  .arch .b-sql{background:rgba(192,132,252,0.1);border:1px solid rgba(192,132,252,0.2);color:#c084fc}
+  .arch .b-txn{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e}
+  .arch .b-store{background:rgba(251,146,60,0.1);border:1px solid rgba(251,146,60,0.2);color:#fb923c}
+  .arch .b-os{background:rgba(113,113,122,0.1);border:1px solid rgba(113,113,122,0.15);color:#71717a}
+
+  /* ── Comparison Table ──────────────────────────────── */
+  .table-wrap{border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,0.06);background:#0f0f13}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:0.9rem 1.3rem;text-align:left;font-size:0.9rem}
+  th{background:rgba(124,58,237,0.06);font-weight:650;color:#a78bfa;font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em}
+  td{border-top:1px solid rgba(255,255,255,0.04)}
+  tr:hover td{background:rgba(255,255,255,0.015)}
+  .highlight-col{background:rgba(124,58,237,0.04)!important}
+  .y{color:#22c55e;font-weight:700}.n{color:#ef4444}
+
+  /* ── Footer ────────────────────────────────────────── */
+  footer{background:#0c0c10;border-top:1px solid rgba(255,255,255,0.05);padding:4rem 2rem 2.5rem}
+  .footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:3rem;max-width:1100px;margin:0 auto 3rem}
+  .footer-brand{display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem}
+  .footer-brand svg{width:26px;height:26px}
+  .footer-brand span{font-weight:700;font-size:1rem}
+  .footer p{color:#52525b;font-size:0.85rem;line-height:1.7}
+  .footer h4{font-size:0.8rem;text-transform:uppercase;letter-spacing:0.08em;color:#71717a;margin-bottom:1rem}
+  .footer ul{list-style:none}
+  .footer ul li{margin-bottom:0.5rem}
+  .footer ul a{color:#a1a1aa;font-size:0.85rem;transition:color 0.2s}
+  .footer ul a:hover{color:#fafafa}
+  .footer-bottom{border-top:1px solid rgba(255,255,255,0.05);padding-top:2rem;text-align:center;max-width:1100px;margin:0 auto}
+
+  /* ── Badges ────────────────────────────────────────── */
+  .badge{display:inline-flex;align-items:center;gap:0.4rem;padding:0.3rem 0.7rem;border-radius:100px;font-size:0.75rem;font-weight:600;white-space:nowrap}
+  .badge-green{background:rgba(34,197,94,0.1);color:#4ade80;border:1px solid rgba(34,197,94,0.2)}
+  .badge-purple{background:rgba(167,139,250,0.1);color:#a78bfa;border:1px solid rgba(167,139,250,0.2)}
+  .badge-blue{background:rgba(56,189,248,0.1);color:#38bdf8;border:1px solid rgba(56,189,248,0.2)}
+  .badge-orange{background:rgba(251,146,60,0.1);color:#fb923c;border:1px solid rgba(251,146,60,0.2)}
+
+  /* ── Tabs (for code examples) ──────────────────────── */
+  .tabs{display:flex;gap:0;margin-bottom:0;border-bottom:1px solid rgba(255,255,255,0.06)}
+  .tabs button{padding:0.7rem 1.2rem;background:none;border:none;color:#52525b;font-size:0.82rem;font-weight:550;cursor:pointer;transition:all 0.2s;border-bottom:2px solid transparent;font-family:inherit}
+  .tabs button.active{color:#a78bfa;border-bottom-color:#a78bfa}
+  .tabs button:hover{color:#a1a1aa}
+
+  /* ── Responsive ────────────────────────────────────── */
+  @media(max-width:900px){
+    .nav-links{display:none}
+    .hero{padding:8rem 1rem 4rem}
+    .section-pad{padding:4rem 1rem}
+    .footer-grid{grid-template-columns:1fr 1fr}
+    .hero-stats{gap:1.5rem}
+    .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}
+    .arch{padding:1.5rem 1rem}
+    .arch pre{font-size:0.68rem}
+    table{font-size:0.78rem}
+    th,td{padding:0.6rem 0.8rem}
+  }
+  @media(max-width:500px){
+    .hero h1{font-size:2.2rem}
+    .hero-logo svg{width:90px;height:90px}
+    .section-head{font-size:1.7rem}
+    .footer-grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Navigation ───────────────────────────────────────────── -->
+<nav class="nav">
+  <div class="container">
+    <a href="#" class="nav-brand">
+      <svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="g1" x1="6" y1="6" x2="42" y2="42"><stop stop-color="#c084fc"/><stop offset="0.5" stop-color="#7c3aed"/><stop offset="1" stop-color="#4c1d95"/></linearGradient></defs><path d="M24 3L44 14.5V33.5L24 45L4 33.5V14.5L24 3Z" fill="url(#g1)" stroke="#a78bfa" stroke-width="2"/><path d="M12 33V15H18L28 27V15H34V33H28L18 21V33H12Z" fill="#fff"/><circle cx="38" cy="10" r="3" fill="#fbbf24"/></svg>
+      <span>NovaDB</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#quickstart">Quick Start</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#docs">API Docs</a></li>
+      <li><a href="#contribute">Contribute</a></li>
+      <li><a href="#" class="nav-cta">Download v1.0</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-badge"><span class="dot"></span> v1.0.0 — Stable Release</div>
+  <div class="hero-logo">
+    <svg viewBox="0 0 160 160" fill="none">
+      <defs>
+        <radialGradient id="heroGlow" cx="80" cy="80" r="80"><stop stop-color="#7c3aed" stop-opacity="0.35"/><stop offset="1" stop-color="#09090b" stop-opacity="0"/></radialGradient>
+        <linearGradient id="heroFill" x1="20" y1="20" x2="140" y2="140"><stop stop-color="#c084fc"/><stop offset="0.45" stop-color="#7c3aed"/><stop offset="1" stop-color="#4c1d95"/></linearGradient>
+        <linearGradient id="heroStroke" x1="40" y1="40" x2="120" y2="120"><stop stop-color="#e9d5ff"/><stop offset="1" stop-color="#a78bfa"/></linearGradient>
+      </defs>
+      <circle cx="80" cy="80" r="76" fill="url(#heroGlow)"/>
+      <path d="M80 10L146 46V114L80 150L14 114V46L80 10Z" fill="url(#heroFill)" stroke="url(#heroStroke)" stroke-width="3.5"/>
+      <path d="M38 110V50H56L93 90V50H110V110H93L56 70V110H38Z" fill="#fff"/>
+      <circle cx="124" cy="36" r="7" fill="#fbbf24"/>
+      <circle cx="124" cy="36" r="12" fill="#fbbf24" opacity="0.15"/>
+    </svg>
+  </div>
+  <h1><span class="gradient-text">The database</span> <span>you can read</span> <span>in a weekend.</span></h1>
+  <p class="byline">
+    A <strong>production-grade SQL engine</strong> written from scratch in portable C11.
+    B+Tree storage · Write-Ahead Log with CRC-32C · MVCC transactions · TCP wire protocol.
+    <strong>Zero dependencies.</strong> &lt;7,000 lines. Apache 2.0.
+  </p>
+  <div class="hero-actions">
+    <a href="#quickstart" class="btn btn-primary btn-lg">→ Get Started</a>
+    <a href="https://github.com/Saff9/NovaDB" class="btn btn-secondary btn-lg">View Source on GitHub</a>
+  </div>
+  <div class="hero-stats">
+    <div class="hero-stat"><div class="num">6,600</div><div class="lbl">Lines of C</div></div>
+    <div class="hero-stat"><div class="num">0</div><div class="lbl">Dependencies</div></div>
+    <div class="hero-stat"><div class="num">8KB</div><div class="lbl">Page Size</div></div>
+    <div class="hero-stat"><div class="num">CRC-32C</div><div class="lbl">Checksums</div></div>
+    <div class="hero-stat"><div class="num">Apache 2.0</div><div class="lbl">License</div></div>
+  </div>
+</section>
+
+<!-- ── Features ─────────────────────────────────────────────── -->
+<section id="features" class="section-pad section-dark">
+  <div class="container">
+    <div class="section-tag">Storage Engine</div>
+    <h2 class="section-head">Every layer built from scratch.</h2>
+    <p class="section-sub">No ORM. No framework. No third-party libraries. Just C11 and POSIX — every byte accounted for.</p>
+
+    <div class="grid grid-3" style="margin-top:3rem">
+      <div class="card">
+        <div class="card-icon">🗂️</div>
+        <h3>Slotted Pages</h3>
+        <p>8KB pages with 40-byte headers. Slot directory grows downward, record data grows upward from the end. Same design as PostgreSQL's <code>bufpage.h</code>. Variable-length keys and values with no external fragmentation.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🌳</div>
+        <h3>B+Tree with Copy-on-Write</h3>
+        <p>All data lives in leaf nodes chained rightward for efficient range scans. Mutations clone the path from root to leaf — old pages stay accessible to concurrent readers. MVCC snapshots without a version chain.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📝</div>
+        <h3>Write-Ahead Log</h3>
+        <p>Every mutation hits the WAL before the B+Tree. CRC-32C checksums on every record. Two-pass recovery replays only committed transactions. Corrupt records truncate the log cleanly on detection.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔄</div>
+        <h3>MVCC Transactions</h3>
+        <p>Snapshot isolation by default. Serializable mode with read-set conflict detection. Write-set buffering with atomic commit via WAL sync. Readers never block writers — writers never block readers.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🧠</div>
+        <h3>Full SQL Engine</h3>
+        <p>Hand-written lexer recognising 60+ SQL keywords. Recursive-descent parser using Pratt precedence climbing for expressions. Supports SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, DROP TABLE, transactions.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🌐</div>
+        <h3>TCP Wire Protocol</h3>
+        <p>Text-framed protocol — debuggable with netcat. epoll event loop on Linux with poll(2) fallback. JSON result payloads. Non-blocking I/O, TCP_NODELAY, 64KB per-connection buffers, graceful shutdown.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📦</div>
+        <h3>Embeddable Library</h3>
+        <p>Link <code>libnovadb</code> directly into your C application. Clean public API. Arena and slab allocators for zero-leak query execution. Thread-safe — share one engine handle across threads.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🛡️</div>
+        <h3>Crash-Safe by Default</h3>
+        <p>fsync after every commit. CRC-protected WAL. Buffer pool flushes all dirty pages on shutdown. Clock-sweep eviction keeps hot pages in memory. Panic on unrecoverable corruption — never silently lose data.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <h3>Clock-Sweep Eviction</h3>
+        <p>O(1) page eviction with a single reference bit per cached frame. The clock hand sweeps through; if a page hasn't been touched, it's evicted. Performs nearly identically to LRU at a fraction of the overhead.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Quick Start ──────────────────────────────────────────── -->
+<section id="quickstart" class="section-pad">
+  <div class="container">
+    <div class="section-tag">Getting Started</div>
+    <h2 class="section-head">One command. That's it.</h2>
+    <p class="section-sub">Clone, build, run. No Docker required. No package manager. No configuration files.</p>
+
+    <!-- One-command setup -->
+    <div class="code-window" style="margin-top:2rem">
+      <div class="topbar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">terminal — one command setup</span></div>
+      <pre><span class="cmt"># Run this single command:</span>
+curl -fsSL https://raw.githubusercontent.com/Saff9/NovaDB/main/setup.sh | <span class="kw">sh</span>
+
+<span class="cmt"># Or manually:</span>
+git clone https://github.com/Saff9/NovaDB.git
+cd NovaDB
+./setup.sh</pre>
+    </div>
+
+    <p style="margin-top:1rem;color:#71717a;font-size:0.9rem;text-align:center">
+      The setup script auto-detects your platform, checks for a C compiler, builds everything, runs the test suite, and prints instructions. Works on Linux, macOS, and FreeBSD.
+    </p>
+
+    <!-- Alternative methods -->
+    <div class="grid grid-3" style="margin-top:2.5rem">
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem"><span class="badge badge-purple">Source</span> Manual build</h3>
+        <div class="code-window">
+          <div class="topbar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">terminal</span></div>
+          <pre><span class="cmt"># Clone and compile</span>
+git clone https://github.com/Saff9/NovaDB.git
+cd NovaDB
+make release
+
+<span class="cmt"># Start the server</span>
+./bin/novadb-server --data-dir ./mydata --port 9876</pre>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem"><span class="badge badge-blue">Docker</span> docker compose up</h3>
+        <div class="code-window">
+          <div class="topbar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">terminal</span></div>
+          <pre><span class="cmt"># One Docker command:</span>
+docker compose up -d
+
+<span class="cmt"># Connects on port 9876</span>
+<span class="cmt"># Data persisted in a Docker volume</span>
+<span class="cmt"># Includes healthcheck</span></pre>
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:0.8rem;display:flex;align-items:center;gap:0.5rem"><span class="badge badge-green">Embed</span> As a C library</h3>
+        <div class="code-window">
+          <div class="topbar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">terminal</span></div>
+          <pre><span class="cmt"># Link directly into your app:</span>
+cc -Iinclude -Isrc your_app.c \
+   src/engine.c src/common/*.c \
+   src/storage/*.c src/txn/*.c \
+   src/sql/*.c src/network/*.c \
+   -lpthread -lm -o your_app</pre>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:2.5rem;font-size:1rem;font-weight:700;display:flex;align-items:center;gap:0.5rem">Try some SQL</h3>
+    <div class="code-window">
+      <div class="topbar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">novadb-cli</span></div>
+      <pre>./bin/novadb-cli
+
+novadb&gt; <span class="kw">CREATE TABLE</span> users (
+  id <span class="ty">INTEGER</span> <span class="kw">PRIMARY KEY</span>,
+  name <span class="ty">VARCHAR</span>(<span class="num">255</span>)
+);
+
+novadb&gt; <span class="kw">INSERT INTO</span> users <span class="kw">VALUES</span> (<span class="num">1</span>, <span class="str">'Alice'</span>);
+novadb&gt; <span class="kw">SELECT</span> * <span class="kw">FROM</span> users;</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── Architecture ─────────────────────────────────────────── -->
+<section id="architecture" class="section-pad section-dark">
+  <div class="container">
+    <div class="section-tag">Design</div>
+    <h2 class="section-head">How it fits together.</h2>
+    <p class="section-sub">Six clean layers with well-defined interfaces.</p>
+
+    <div class="arch" style="margin-top:2rem">
+<pre>
+┌──────────────────────────────────────────────────────────────────┐
+│  <span class="box b-client">novadb-cli</span>  <span class="box b-client">netcat</span>  <span class="box b-client">Your Application (linked with libnovadb)</span>  │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │  TCP port 9876  ·  Text-framed protocol
+┌────────────────────────────▼─────────────────────────────────────┐
+│  <span class="box b-srv">Network Server</span>                                                 │
+│  epoll (Linux) / poll (POSIX) · edge-triggered · non-blocking   │
+│  Connection pool · 64KB buffers · TCP_NODELAY · graceful drain  │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │
+┌────────────────────────────▼─────────────────────────────────────┐
+│  <span class="box b-sql">SQL Layer</span>                                                       │
+│  ┌──────────┐    ┌─────────────┐    ┌────────────────────────┐   │
+│  │  Lexer   │ →  │   Parser    │ →  │      Executor          │   │
+│  │ 60+ KW   │    │ Pratt expr  │    │ SELECT INSERT UPDATE   │   │
+│  └──────────┘    └─────────────┘    │ DELETE CREATE DROP     │   │
+│                                     └────────────────────────┘   │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │
+┌────────────────────────────▼─────────────────────────────────────┐
+│  <span class="box b-txn">Transaction Manager</span>  ·  MVCC · Snapshot Isolation              │
+│  Write-set buffering · atomic commit via WAL · read-set tracking │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │
+┌────────────────────────────▼─────────────────────────────────────┐
+│  <span class="box b-store">Storage Engine</span>                                                    │
+│  ┌──────────────┐   ┌────────────────┐   ┌──────────────────┐   │
+│  │   B+Tree     │   │  WAL (CRC-32C) │   │   Buffer Pool    │   │
+│  │  Copy-on-Wrt │   │  Append-only   │   │  Clock-sweep     │   │
+│  │  Leaf chain  │   │  2-pass recvry │   │  4,096 frames    │   │
+│  └──────────────┘   └────────────────┘   └──────────────────┘   │
+└────────────────────────────┬─────────────────────────────────────┘
+                             │
+┌────────────────────────────▼─────────────────────────────────────┐
+│  <span class="box b-os">OS Kernel</span>  ·  pread / pwrite / fsync / epoll / mmap            │
+└──────────────────────────────────────────────────────────────────┘
+</pre>
+    </div>
+
+    <div class="grid grid-2" style="margin-top:2rem">
+      <div class="card">
+        <h3>Page Layout</h3>
+        <p style="margin-bottom:0.8rem">8KB slotted page — 40-byte header, slot directory from the top, record data from the bottom.</p>
+        <pre style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-family:monospace;font-size:0.75rem;line-height:1.9;color:#a1a1aa;margin:0">
+┌──────────────────────────────┐
+│  <span style="color:#c084fc">Header (40B)</span>               │
+│  magic type flags self       │
+│  parent sibling nslots       │
+│  free_off free_len           │
+├──────────────────────────────┤
+│  <span style="color:#a78bfa">Slot 0</span> <span style="color:#a78bfa">Slot 1</span> ... <span style="color:#a78bfa">Slot N</span>   │← offset 40
+│   off  kl  vl  fl           │  grows ↓
+├──────────────────────────────┤
+│       free space             │
+├──────────────────────────────┤
+│  <span style="color:#fb923c">Data N</span> ... <span style="color:#fb923c">Data 1</span> <span style="color:#fb923c">Data 0</span> │← grows ↑
+└──────────────────────────────┘</pre>
+      </div>
+      <div class="card">
+        <h3>WAL Record</h3>
+        <p style="margin-bottom:0.8rem">Every record is CRC-32C protected. Committed transactions are replayed on recovery.</p>
+        <pre style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-family:monospace;font-size:0.75rem;line-height:1.9;color:#a1a1aa;margin:0">
+<span style="color:#71717a">Off  Sz  Field</span>
+  0   4  <span style="color:#ef4444">CRC-32C</span>
+  4   4  total_len
+  8   8  LSN
+ 16   4  txn_id
+ 20   1  <span style="color:#4ade80">op</span> (INSERT=1 DELETE=2
+        COMMIT=4)
+ 21   2  key_length
+ 23   4  value_length
+ 27   -  key ...
+27+kl -  value ...</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Comparison ───────────────────────────────────────────── -->
+<section id="comparison" class="section-pad">
+  <div class="container">
+    <div class="section-tag">Context</div>
+    <h2 class="section-head">Where NovaDB fits.</h2>
+    <p class="section-sub">Embeddable like SQLite. MVCC like PostgreSQL. Sparse like LMDB. SQL-capable from day one.</p>
+
+    <div class="table-wrap" style="margin-top:2rem">
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th class="highlight-col" style="color:#fbbf24">NovaDB</th>
+            <th>SQLite</th>
+            <th>PostgreSQL</th>
+            <th>LMDB</th>
+            <th>Redis</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Category</td><td class="highlight-col">SQL Database</td><td>SQL Database</td><td>SQL Server</td><td>Key-Value</td><td>Key-Value</td></tr>
+          <tr><td>Language</td><td class="highlight-col">C11</td><td>C</td><td>C</td><td>C</td><td>C</td></tr>
+          <tr><td>Storage Model</td><td class="highlight-col">B+Tree (CoW)</td><td>B-Tree</td><td>Heap + BTree</td><td>B+Tree (CoW)</td><td>In-memory</td></tr>
+          <tr><td>Write-Ahead Log</td><td class="highlight-col"><span class="y">✓ CRC-32C</span></td><td><span class="y">✓ Custom</span></td><td><span class="y">✓ CRC-32C</span></td><td><span class="n">✗</span></td><td><span class="y">✓ AOF</span></td></tr>
+          <tr><td>MVCC</td><td class="highlight-col"><span class="y">✓</span></td><td><span class="n">✗</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="n">✗</span></td></tr>
+          <tr><td>Full SQL</td><td class="highlight-col"><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="n">✗</span></td><td><span class="n">✗</span></td></tr>
+          <tr><td>Embeddable</td><td class="highlight-col"><span class="y">✓</span></td><td><span class="y">✓</span></td><td><span class="n">✗</span></td><td><span class="y">✓</span></td><td><span class="n">✗</span></td></tr>
+          <tr><td>Dependencies</td><td class="highlight-col"><span class="y">None</span></td><td><span class="y">None</span></td><td>Many</td><td><span class="y">None</span></td><td>None</td></tr>
+          <tr><td>Code Size</td><td class="highlight-col">~6,600 loc</td><td>~155K loc</td><td>~1.2M loc</td><td>~12K loc</td><td>~170K loc</td></tr>
+          <tr><td>License</td><td class="highlight-col">Apache 2.0</td><td>Public Domain</td><td>PostgreSQL</td><td>OpenLDAP</td><td>BSL/RSALv2</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── API Reference ────────────────────────────────────────── -->
+<section id="docs" class="section-pad section-dark">
+  <div class="container">
+    <div class="section-tag">Reference</div>
+    <h2 class="section-head">C API.</h2>
+    <p class="section-sub">Every public function. Clean signatures. No surprises.</p>
+
+    <div class="grid grid-2" style="margin-top:2rem">
+      <div class="card">
+        <h3>Lifecycle</h3>
+        <pre style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.8rem;line-height:1.8;margin:0.5rem 0 0"><span class="ty">NVDBEngine</span>*   <span class="fn">nvdb_open</span>(<span class="kw">const char</span>* path);
+<span class="ty">nvdb_errcode_t</span> <span class="fn">nvdb_close</span>(<span class="ty">NVDBEngine</span>* engine);</pre>
+      </div>
+      <div class="card">
+        <h3>SQL Execution</h3>
+        <pre style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.8rem;line-height:1.8;margin:0.5rem 0 0"><span class="ty">NVDBResultSet</span>* <span class="fn">nvdb_exec</span>(<span class="ty">NVDBEngine</span>*, <span class="kw">const char</span>* sql);
+<span class="kw">void</span>            <span class="fn">nvdb_result_free</span>(<span class="ty">NVDBResultSet</span>*);</pre>
+      </div>
+      <div class="card">
+        <h3>Result Inspection</h3>
+        <pre style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.8rem;line-height:1.8;margin:0.5rem 0 0"><span class="ty">uint32_t</span>  <span class="fn">nvdb_result_ncols</span>(<span class="kw">const</span> <span class="ty">NVDBResultSet</span>*);
+<span class="ty">uint64_t</span>  <span class="fn">nvdb_result_nrows</span>(<span class="kw">const</span> <span class="ty">NVDBResultSet</span>*);
+<span class="kw">const char</span>* <span class="fn">nvdb_result_colname</span>(<span class="kw">const</span> <span class="ty">NVDBResultSet</span>*, <span class="ty">uint32_t</span>);
+<span class="kw">const</span> <span class="ty">NVDBValue</span>* <span class="fn">nvdb_result_value</span>(<span class="kw">const</span> <span class="ty">NVDBResultSet</span>*,
+                               <span class="ty">uint64_t</span> row, <span class="ty">uint32_t</span> col);</pre>
+      </div>
+      <div class="card">
+        <h3>Transactions</h3>
+        <pre style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.8rem;line-height:1.8;margin:0.5rem 0 0"><span class="ty">NVDBTransaction</span>* <span class="fn">nvdb_begin</span>(<span class="ty">NVDBEngine</span>*);
+<span class="ty">nvdb_errcode_t</span>   <span class="fn">nvdb_commit</span>(<span class="ty">NVDBTransaction</span>*);
+<span class="ty">nvdb_errcode_t</span>   <span class="fn">nvdb_rollback</span>(<span class="ty">NVDBTransaction</span>*);</pre>
+      </div>
+      <div class="card">
+        <h3>Key-Value Access</h3>
+        <pre style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.8rem;line-height:1.8;margin:0.5rem 0 0"><span class="ty">nvdb_errcode_t</span> <span class="fn">nvdb_kv_get</span>(<span class="ty">NVDBEngine</span>*, <span class="kw">const char</span>* key,
+                           <span class="kw">char</span>** value, <span class="ty">size_t</span>* vallen);
+<span class="ty">nvdb_errcode_t</span> <span class="fn">nvdb_kv_put</span>(<span class="ty">NVDBEngine</span>*, <span class="kw">const char</span>* key,
+                           <span class="kw">const char</span>* value);
+<span class="ty">nvdb_errcode_t</span> <span class="fn">nvdb_kv_del</span>(<span class="ty">NVDBEngine</span>*, <span class="kw">const char</span>* key);</pre>
+      </div>
+      <div class="card">
+        <h3>Statistics & Version</h3>
+        <pre style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;font-size:0.8rem;line-height:1.8;margin:0.5rem 0 0"><span class="kw">const</span> <span class="ty">NVDBStats</span>* <span class="fn">nvdb_stats</span>(<span class="ty">NVDBEngine</span>*);
+<span class="kw">const char</span>*     <span class="fn">nvdb_version</span>(<span class="kw">void</span>);</pre>
+      </div>
+    </div>
+
+    <h3 style="margin-top:2rem;font-size:1rem;font-weight:700">NVDBValue — Tagged Union</h3>
+    <div class="code-window">
+      <div class="topbar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">types.h</span></div>
+      <pre><span class="kw">typedef struct</span> {
+    <span class="ty">nvdb_valtype_t</span> type;   <span class="cmt">/* NVDB_TYPE_NULL | INT64 | FLOAT64 | STRING | BOOL */</span>
+    <span class="ty">int64_t</span>   i64;
+    <span class="ty">double</span>    f64;
+    <span class="kw">bool</span>      bval;
+    <span class="kw">char</span>*     str_val;
+    <span class="ty">uint32_t</span>  str_len;
+} <span class="ty">NVDBValue</span>;
+
+<span class="cmt">/* Inline helpers */</span>
+<span class="kw">void</span> <span class="fn">nvdb_val_set_null</span>(<span class="ty">NVDBValue</span>* v);
+<span class="kw">void</span> <span class="fn">nvdb_val_set_i64</span>(<span class="ty">NVDBValue</span>* v, <span class="ty">int64_t</span> n);
+<span class="kw">void</span> <span class="fn">nvdb_val_set_str</span>(<span class="ty">NVDBValue</span>* v, <span class="kw">char</span>* s, <span class="ty">uint32_t</span> len);
+<span class="kw">void</span> <span class="fn">nvdb_val_set_bool</span>(<span class="ty">NVDBValue</span>* v, <span class="kw">bool</span> b);
+<span class="kw">void</span> <span class="fn">nvdb_val_set_f64</span>(<span class="ty">NVDBValue</span>* v, <span class="ty">double</span> d);
+<span class="kw">void</span> <span class="fn">nvdb_val_free</span>(<span class="ty">NVDBValue</span>* v);  <span class="cmt">/* frees owned string */</span></pre>
+    </div>
+
+    <h3 style="margin-top:2rem;font-size:1rem;font-weight:700">Error Codes</h3>
+    <div class="code-window">
+      <div class="topbar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">error.h</span></div>
+      <pre><span class="ty">NVDB_OK</span>              =  <span class="num">0</span>   <span class="cmt">/* success */</span>
+<span class="ty">NVDB_ERR_IO</span>          = <span class="num">-1</span>   <span class="cmt">/* disk I/O failure */</span>
+<span class="ty">NVDB_ERR_NOMEM</span>       = <span class="num">-2</span>   <span class="cmt">/* out of memory */</span>
+<span class="ty">NVDB_ERR_CORRUPT</span>     = <span class="num">-3</span>   <span class="cmt">/* data corruption detected */</span>
+<span class="ty">NVDB_ERR_NOT_FOUND</span>   = <span class="num">-4</span>   <span class="cmt">/* key not found */</span>
+<span class="ty">NVDB_ERR_DUPLICATE</span>   = <span class="num">-5</span>   <span class="cmt">/* duplicate key */</span>
+<span class="ty">NVDB_ERR_FULL</span>        = <span class="num">-6</span>   <span class="cmt">/* disk / buffer pool full */</span>
+<span class="ty">NVDB_ERR_PARSE</span>       = <span class="num">-8</span>   <span class="cmt">/* SQL syntax error */</span>
+<span class="ty">NVDB_ERR_TXN_ABORTED</span> = <span class="num">-10</span>  <span class="cmt">/* transaction was aborted */</span>
+<span class="ty">NVDB_ERR_TXN_CONFLICT</span>= <span class="num">-11</span>  <span class="cmt">/* write conflict — retry */</span>
+
+<span class="cmt">/* Thread-local last error */</span>
+<span class="kw">extern</span> <span class="ty">NVDBError</span> nvdb_last_error;
+<span class="kw">const char</span>* <span class="fn">nvdb_strerror</span>(<span class="ty">nvdb_errcode_t</span> code);</pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── Contributing ─────────────────────────────────────────── -->
+<section id="contribute" class="section-pad">
+  <div class="container">
+    <div class="section-tag">Community</div>
+    <h2 class="section-head">Help build the future of NovaDB.</h2>
+    <p class="section-sub">Apache 2.0. All contributions are welcome — code, docs, bindings, benchmarks.</p>
+
+    <div class="grid grid-2" style="margin-top:2.5rem">
+      <div class="card">
+        <div class="card-icon">🔍</div>
+        <h3>Pick an Issue</h3>
+        <p>Browse the GitHub issue tracker. Look for <span class="badge badge-green">good-first-issue</span> or <span class="badge badge-purple">help-wanted</span>. Comment to let others know you're working on it.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔀</div>
+        <h3>Fork &amp; Branch</h3>
+        <p>Fork the repo, branch off <code>main</code>. Name your branch <code>feature/short-desc</code> or <code>fix/issue-42</code>. Keep each branch focused on one change.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📐</div>
+        <h3>Follow the Style</h3>
+        <p>C11, 4-space indentation, no tabs. Functions are <code>snake_case</code>, types are <code>CamelCase</code>. Every function gets a brief comment. <code>-Wall -Wextra -Wpedantic</code> — zero warnings required.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">🧪</div>
+        <h3>Write Tests</h3>
+        <p>New features need integration tests in <code>test/</code>. Bug fixes need a regression test that fails without your patch. Run <code>make test</code> before submitting.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">📬</div>
+        <h3>Open a Pull Request</h3>
+        <p>Push your branch and open a PR. Describe what you changed and why. Link any related issues. CI runs on every PR automatically.</p>
+      </div>
+      <div class="card">
+        <div class="card-icon">💬</div>
+        <h3>Code Review</h3>
+        <p>Maintainers review within a few days. Feedback is about the code, not the person. Iterate, learn, ship.</p>
+      </div>
+    </div>
+
+    <h3 style="margin-top:3rem;margin-bottom:1rem;font-size:1rem;font-weight:700">What we need help with</h3>
+    <div style="display:flex;flex-wrap:wrap;gap:0.6rem">
+      <span class="badge badge-blue">JOIN support</span>
+      <span class="badge badge-green">Secondary indexes</span>
+      <span class="badge badge-orange">Leader-follower replication</span>
+      <span class="badge badge-purple">Prepared statements</span>
+      <span class="badge badge-blue">Aggregation (SUM, AVG, COUNT)</span>
+      <span class="badge badge-green">Subqueries</span>
+      <span class="badge badge-orange">Python bindings</span>
+      <span class="badge badge-purple">Go bindings</span>
+      <span class="badge badge-blue">Rust bindings</span>
+      <span class="badge badge-green">Zig bindings</span>
+      <span class="badge badge-orange">Benchmark suite (vs SQLite)</span>
+      <span class="badge badge-purple">macOS CI pipeline</span>
+      <span class="badge badge-blue">FreeBSD port</span>
+      <span class="badge badge-green">Encryption at rest</span>
+      <span class="badge badge-orange">ODBC driver</span>
+    </div>
+
+    <h3 style="margin-top:3rem;margin-bottom:1rem;font-size:1rem;font-weight:700">Project Structure</h3>
+    <div class="code-window">
+      <div class="topbar"><span class="dot red"></span><span class="dot yellow"></span><span class="dot green"></span><span class="title">tree novadb-c/</span></div>
+      <pre><span class="cmt">novadb-c/</span>
+├── <span class="cmt">Makefile</span>                   <span class="cmt"># GNU Make — debug + release builds</span>
+├── <span class="cmt">CMakeLists.txt</span>             <span class="cmt"># CMake alternative</span>
+├── <span class="cmt">README.md</span>
+├── <span class="cmt">website.html</span>                <span class="cmt"># This page</span>
+├── <span class="cmt">include/novadb/</span>
+│   ├── nvdb.h                 <span class="cmt"># Public C API</span>
+│   ├── types.h                <span class="cmt"># NVDBValue, page/wal structs</span>
+│   ├── error.h                <span class="cmt"># Error handling + diagnostics</span>
+│   └── nvdb_config.h          <span class="cmt"># Platform configuration</span>
+├── <span class="cmt">src/</span>
+│   ├── common/
+│   │   ├── memory.c/h         <span class="cmt"># Arena + slab allocators</span>
+│   │   └── logging.c/h        <span class="cmt"># Structured logging</span>
+│   ├── storage/
+│   │   ├── page.c/h           <span class="cmt"># Slotted 8KB pages</span>
+│   │   ├── btree.c/h          <span class="cmt"># B+Tree (copy-on-write)</span>
+│   │   ├── buffer.c/h         <span class="cmt"># Buffer pool (clock-sweep)</span>
+│   │   └── wal.c/h            <span class="cmt"># Write-Ahead Log (CRC-32C)</span>
+│   ├── txn/
+│   │   └── transaction.c/h    <span class="cmt"># MVCC transaction manager</span>
+│   ├── sql/
+│   │   ├── lexer.c/h          <span class="cmt"># SQL tokeniser (60+ keywords)</span>
+│   │   ├── parser.c/h         <span class="cmt"># Recursive-descent + Pratt</span>
+│   │   └── executor.c/h       <span class="cmt"># Query executor</span>
+│   ├── network/
+│   │   ├── server.c/h         <span class="cmt"># TCP server (epoll + poll)</span>
+│   │   └── protocol.c/h       <span class="cmt"># Text-framed wire protocol</span>
+│   ├── engine.c               <span class="cmt"># Engine assembly + API impl</span>
+│   └── main.c                 <span class="cmt"># Server entry point</span>
+├── <span class="cmt">contrib/</span>
+│   └── novacli.c              <span class="cmt"># Interactive CLI client</span>
+└── <span class="cmt">test/</span>
+    ├── test_main.c             <span class="cmt"># Test runner</span>
+    ├── test_btree.c            <span class="cmt"># B+Tree (500-key stress)</span>
+    ├── test_wal.c              <span class="cmt"># WAL recovery</span>
+    ├── test_sql.c              <span class="cmt"># Lexer + parser</span>
+    └── test_integration.c      <span class="cmt"># Full SQL lifecycle</span></pre>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ───────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-grid">
+    <div>
+      <div class="footer-brand">
+        <svg viewBox="0 0 32 32" fill="none"><path d="M16 2L29 9V23L16 30L3 23V9L16 2Z" fill="#7c3aed" stroke="#a78bfa" stroke-width="1.5"/><path d="M8 22V10H12L19 18V10H22V22H19L12 14V22H8Z" fill="#fff"/><circle cx="25" cy="7" r="2" fill="#fbbf24"/></svg>
+        <span>NovaDB</span>
+      </div>
+      <p>A production-grade SQL database engine written from scratch in portable C11. Zero dependencies. Apache 2.0 licensed.</p>
+    </div>
+    <div>
+      <h4>Product</h4>
+      <ul>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#comparison">Comparison</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#">Releases</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Developers</h4>
+      <ul>
+        <li><a href="#docs">API Docs</a></li>
+        <li><a href="#quickstart">Quick Start</a></li>
+        <li><a href="#contribute">Contributing</a></li>
+        <li><a href="https://github.com/Saff9/NovaDB">GitHub</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Community</h4>
+      <ul>
+        <li><a href="#">Discussions</a></li>
+        <li><a href="#">Issue Tracker</a></li>
+        <li><a href="#">Changelog</a></li>
+        <li><a href="#">Code of Conduct</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <p>© 2026 NovaDB Contributors. Built with C11. Licensed under Apache 2.0.</p>
+  </div>
+</footer>
+
+</body>
+</html>

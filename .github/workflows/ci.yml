@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['*.md', 'website.html', 'LICENSE']
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  build-and-test:
+    name: "${{ matrix.os }} · ${{ matrix.build }} · ${{ matrix.cc }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:    [ubuntu-24.04, ubuntu-24.04-arm, macos-14, macos-15]
+        build: [debug, release]
+        cc:    [gcc, clang]
+        exclude:
+          - os: macos-14
+            cc: gcc
+          - os: macos-15
+            cc: gcc
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set compiler
+        run: |
+          if [ "${{ matrix.cc }}" = "clang" ]; then
+            echo "CC=clang" >> $GITHUB_ENV
+          else
+            echo "CC=gcc" >> $GITHUB_ENV
+          fi
+
+      - name: Build (${{ matrix.build }})
+        run: make ${{ matrix.build }}
+
+      - name: Test
+        run: make test
+
+      - name: Binary size report
+        run: ls -lh bin/ && echo "---" && nm bin/novadb-server 2>/dev/null | wc -l || true
+
+  static-analysis:
+    name: "Static analysis"
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: cppcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq cppcheck
+          cppcheck --enable=all --inconclusive --std=c11 \
+            --suppress=missingIncludeSystem \
+            -I include -I src src/ 2>&1 | tail -20
+        continue-on-error: true
+
+  sanitizers:
+    name: "Sanitizers (ASan + UBSan)"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build with sanitizers and run tests
+        run: make debug && make test
+
+  valgrind:
+    name: "Valgrind memcheck"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install valgrind
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq valgrind
+      - name: Build and run under valgrind
+        run: |
+          make debug
+          valgrind --leak-check=full --show-leak-kinds=all \
+            --track-origins=yes --error-exitcode=1 \
+            ./bin/novadb-test 2>&1 | tail -30

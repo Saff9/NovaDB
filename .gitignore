@@ -1,0 +1,25 @@
+# Build artifacts
+build/
+bin/
+*.o
+*.a
+*.so
+
+# NovaDB runtime data
+novadb-data/
+*.db
+wal.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.tags
+*.dSYM/
+.DS_Store
+Thumbs.db
+
+# Sanitizer
+*.asan.*

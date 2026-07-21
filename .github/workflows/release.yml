@@ -1,0 +1,109 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+
+  create-release:
+    name: "Create GitHub release"
+    runs-on: ubuntu-24.04
+    outputs:
+      upload_url: ${{ steps.release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse version tag
+        id: tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            PREV_TAG=$(git rev-list --max-parents=0 HEAD)
+          fi
+          git log ${PREV_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges > /tmp/changelog.md
+          cat /tmp/changelog.md
+
+      - name: Create release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "NovaDB v${{ steps.tag.outputs.version }}"
+          body_path: /tmp/changelog.md
+          draft: false
+          prerelease: false
+
+  build-binaries:
+    name: "Build ${{ matrix.target }}"
+    needs: create-release
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            runner: ubuntu-24.04
+            cc: gcc
+          - target: linux-arm64
+            runner: ubuntu-24.04-arm
+            cc: gcc
+          - target: macos-x86_64
+            runner: macos-14
+            cc: clang
+          - target: macos-arm64
+            runner: macos-15
+            cc: clang
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          make CC=${{ matrix.cc }} release
+          cp bin/novadb-server bin/novadb-server-${{ matrix.target }}
+          cp bin/novadb-cli    bin/novadb-cli-${{ matrix.target }}
+
+      - name: SHA256 checksums
+        run: |
+          cd bin
+          sha256sum novadb-server-${{ matrix.target }} > novadb-server-${{ matrix.target }}.sha256
+          sha256sum novadb-cli-${{ matrix.target }}    > novadb-cli-${{ matrix.target }}.sha256
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            bin/novadb-server-${{ matrix.target }}
+            bin/novadb-server-${{ matrix.target }}.sha256
+            bin/novadb-cli-${{ matrix.target }}
+            bin/novadb-cli-${{ matrix.target }}.sha256
+
+  source-tarball:
+    name: "Source tarball"
+    needs: create-release
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create archive
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          git archive --format=tar.gz --prefix=novadb-${VERSION}/ \
+            -o /tmp/novadb-${VERSION}.tar.gz HEAD
+          sha256sum /tmp/novadb-${VERSION}.tar.gz > /tmp/novadb-${VERSION}.tar.gz.sha256
+
+      - name: Upload source
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            /tmp/novadb-*.tar.gz
+            /tmp/novadb-*.tar.gz.sha256

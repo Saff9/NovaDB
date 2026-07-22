@@ -18,12 +18,12 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: github/codeql-action/init@v3
+      - uses: github/codeql-action/init@v4
         with:
           languages: c
           queries: security-extended,security-and-quality
       - name: Build
         run: make release
-      - uses: github/codeql-action/analyze@v3
+      - uses: github/codeql-action/analyze@v4
         with:
           category: "/language:c"
